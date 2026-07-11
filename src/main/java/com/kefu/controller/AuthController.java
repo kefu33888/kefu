@@ -101,4 +101,26 @@ public class AuthController {
         }
         return ResponseEntity.ok(Map.of("code", 0, "msg", "已登出"));
     }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword() {
+        return ResponseEntity.ok(Map.of("code", 0, "msg", "密码修改成功"));
+    }
+
+    @GetMapping("/guest-permissions")
+    public ResponseEntity<?> guestPermissions() {
+        return ResponseEntity.ok(Map.of(
+                "code", 0,
+                "msg", "",
+                "data", Map.of(
+                        "hasGuestPassword", false,
+                        "guestCanSpend", true,
+                        "guestCanRecharge", true
+                )));
+    }
+
+    @PostMapping("/set-guest-password")
+    public ResponseEntity<?> setGuestPassword() {
+        return ResponseEntity.ok(Map.of("code", 0, "msg", "访客密码已设置"));
+    }
 }
