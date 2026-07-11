@@ -1,0 +1,11 @@
+# Build and runtime artifacts
+/target/
+/source.zip
+
+# IDE and OS files
+*.log
+*.tmp
+*.swp
+*.DS_Store
+.idea/
+*.iml
