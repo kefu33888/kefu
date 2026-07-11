@@ -1,6 +1,7 @@
 package com.kefu.controller;
 
 import com.kefu.security.TokenStore;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,8 +21,15 @@ public class ApiFacadeController {
     private final Map<String, Map<String, Object>> redEnvelopes = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Object>> apiLinks = new ConcurrentHashMap<>();
     private final Map<String, Object> settings = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Object>> customAntiRedLinks = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Object>> orders = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Object>> chatMessages = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Object>> chatSessions = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Object>> files = new ConcurrentHashMap<>();
     private final AtomicLong userSequence = new AtomicLong(1001);
     private final AtomicLong apiLinkSequence = new AtomicLong(1);
+    private final AtomicLong orderSequence = new AtomicLong(10001);
+    private final AtomicLong messageSequence = new AtomicLong(1);
 
     public ApiFacadeController() {
         seedUsers();
@@ -74,6 +82,10 @@ public class ApiFacadeController {
         item.put("paid", false);
         item.put("status", "active");
         apiLinks.put("1", item);
+    }
+
+    private String buildFilePath(String filename) {
+        return "/api/files/" + filename;
     }
 
     private ResponseEntity<Map<String, Object>> ok(Object data) {
@@ -146,6 +158,22 @@ public class ApiFacadeController {
         return ok(item);
     }
 
+    @PutMapping("/announcement/{id}/toggle")
+    public ResponseEntity<Map<String, Object>> toggleAnnouncement(@PathVariable String id) {
+        Map<String, Object> item = announcements.get(id);
+        if (item == null) {
+            return fail("公告不存在", 404);
+        }
+        item.put("active", !Boolean.TRUE.equals(item.get("active")));
+        return ok(item);
+    }
+
+    @DeleteMapping("/announcement/{id}")
+    public ResponseEntity<Map<String, Object>> deleteAnnouncement(@PathVariable String id) {
+        Map<String, Object> removed = announcements.remove(id);
+        return removed == null ? fail("公告不存在", 404) : ok(Map.of("deleted", true));
+    }
+
     @GetMapping("/red-envelope")
     public ResponseEntity<Map<String, Object>> redEnvelopeList() {
         return ok(new ArrayList<>(redEnvelopes.values()));
@@ -168,7 +196,45 @@ public class ApiFacadeController {
             return fail("红包不存在", 404);
         }
         item.put("claimed", true);
+        item.put("claimedAmount", item.getOrDefault("amount", 0));
         return ok(item);
+    }
+
+    @PostMapping("/red-envelope")
+    public ResponseEntity<Map<String, Object>> createRedEnvelope(@RequestBody Map<String, Object> body) {
+        String id = String.valueOf(System.currentTimeMillis());
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", id);
+        item.put("title", body.getOrDefault("title", "红包"));
+        item.put("content", body.getOrDefault("content", ""));
+        item.put("amount", body.getOrDefault("maxAmount", body.getOrDefault("amount", 0)));
+        item.put("status", Boolean.TRUE.equals(body.get("enabled")) ? "active" : "inactive");
+        item.put("active", Boolean.TRUE.equals(body.get("enabled")) || body.get("enabled") == null);
+        item.put("claimCount", 0);
+        redEnvelopes.put(id, item);
+        return ok(item);
+    }
+
+    @PutMapping("/red-envelope/{id}/toggle")
+    public ResponseEntity<Map<String, Object>> toggleRedEnvelope(@PathVariable String id) {
+        Map<String, Object> item = redEnvelopes.get(id);
+        if (item == null) {
+            return fail("红包不存在", 404);
+        }
+        item.put("status", Boolean.TRUE.equals(item.get("active")) ? "inactive" : "active");
+        item.put("active", !Boolean.TRUE.equals(item.get("active")));
+        return ok(item);
+    }
+
+    @DeleteMapping("/red-envelope/{id}")
+    public ResponseEntity<Map<String, Object>> deleteRedEnvelope(@PathVariable String id) {
+        Map<String, Object> removed = redEnvelopes.remove(id);
+        return removed == null ? fail("红包不存在", 404) : ok(Map.of("deleted", true));
+    }
+
+    @GetMapping("/red-envelope/{id}/claims")
+    public ResponseEntity<Map<String, Object>> redEnvelopeClaims(@PathVariable String id) {
+        return ok(List.of());
     }
 
     @PostMapping("/payment/create")
@@ -403,8 +469,10 @@ public class ApiFacadeController {
     }
 
     @GetMapping("/admin/domains")
-    public ResponseEntity<Map<String, Object>> adminDomains() {
-        return ok(List.of(Map.of("name", "默认域名", "url", "https://example.com", "qrDataUrl", "")));
+    public ResponseEntity<?> adminDomains() {
+        return ResponseEntity.ok(List.of(
+                Map.of("id", 1, "domain", "example.com", "status", "active", "remark", "", "url", "https://example.com", "qrDataUrl", "")
+        ));
     }
 
     @GetMapping("/admin/monitoring/dashboard")
@@ -420,6 +488,36 @@ public class ApiFacadeController {
     @PostMapping("/admin/upload")
     public ResponseEntity<Map<String, Object>> adminUpload() {
         return ok(Map.of("url", "/img/default.png"));
+    }
+
+    @PostMapping("/admin/configs")
+    public ResponseEntity<Map<String, Object>> createAdminConfig(@RequestBody Map<String, Object> body) {
+        return ok(Map.of("saved", true));
+    }
+
+    @PostMapping("/admin/domains/{id}/block")
+    public ResponseEntity<Map<String, Object>> blockDomain(@PathVariable String id) {
+        return ok(Map.of("blocked", true));
+    }
+
+    @PostMapping("/admin/domains/{id}/unblock")
+    public ResponseEntity<Map<String, Object>> unblockDomain(@PathVariable String id) {
+        return ok(Map.of("unblocked", true));
+    }
+
+    @DeleteMapping("/admin/domains/{id}")
+    public ResponseEntity<Map<String, Object>> deleteDomain(@PathVariable String id) {
+        return ok(Map.of("deleted", true));
+    }
+
+    @PutMapping("/admin/domains/{id}/remark")
+    public ResponseEntity<Map<String, Object>> remarkDomain(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        return ok(Map.of("updated", true));
+    }
+
+    @PutMapping("/admin/domains/{id}/landing-file")
+    public ResponseEntity<Map<String, Object>> landingFile(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        return ok(Map.of("updated", true));
     }
 
     @PostMapping("/license/add")
@@ -449,17 +547,40 @@ public class ApiFacadeController {
 
     @PostMapping("/order/create")
     public ResponseEntity<Map<String, Object>> createOrder(@RequestBody Map<String, Object> body) {
-        return ok(Map.of("orderId", UUID.randomUUID().toString(), "status", "created"));
+        String orderId = String.valueOf(orderSequence.incrementAndGet());
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", orderId);
+        item.put("orderId", orderId);
+        item.put("buyerName", body.getOrDefault("agentAccount", "buyer"));
+        item.put("title", body.getOrDefault("title", "订单"));
+        item.put("price", body.getOrDefault("price", 0));
+        item.put("imagePath", body.get("imagePath"));
+        item.put("status", "created");
+        orders.put(orderId, item);
+        return ok(item);
+    }
+
+    @GetMapping("/order/{id}")
+    public ResponseEntity<Map<String, Object>> getOrder(@PathVariable String id) {
+        Map<String, Object> item = orders.get(id);
+        return item == null ? fail("订单不存在", 404) : ok(item);
     }
 
     @PostMapping("/order/upload-image")
-    public ResponseEntity<Map<String, Object>> uploadOrderImage() {
-        return ok(Map.of("url", "/img/default.png"));
+    public ResponseEntity<Map<String, Object>> uploadOrderImage(@RequestParam(required = false) String fileName) {
+        String name = fileName != null ? fileName : "upload-" + System.currentTimeMillis() + ".png";
+        files.put(name, Map.of("filename", name, "path", buildFilePath(name)));
+        return ok(Map.of("imagePath", buildFilePath(name)));
     }
 
     @GetMapping("/order/image/{id}")
     public ResponseEntity<Map<String, Object>> orderImage(@PathVariable String id) {
         return ok(Map.of("id", id, "url", "/img/default.png"));
+    }
+
+    @PostMapping("/chat/verify-agent")
+    public ResponseEntity<Map<String, Object>> verifyAgent(@RequestParam String agentAccount) {
+        return ok(Map.of("exists", true, "agentAccount", agentAccount));
     }
 
     @GetMapping("/chat/agent-status")
@@ -473,33 +594,53 @@ public class ApiFacadeController {
     }
 
     @GetMapping("/chat/poll")
-    public ResponseEntity<Map<String, Object>> chatPoll() {
+    public ResponseEntity<Map<String, Object>> chatPoll(@RequestParam(required = false) String sessionId, @RequestParam(required = false) Long lastId) {
         return ok(List.of());
     }
 
     @PostMapping("/chat/send")
-    public ResponseEntity<Map<String, Object>> chatSend() {
-        return ok(Map.of("sent", true));
+    public ResponseEntity<Map<String, Object>> chatSend(@RequestBody Map<String, Object> body) {
+        String sessionId = String.valueOf(body.getOrDefault("sessionId", "default"));
+        Map<String, Object> msg = new LinkedHashMap<>();
+        msg.put("id", messageSequence.incrementAndGet());
+        msg.put("sessionId", sessionId);
+        msg.put("content", body.getOrDefault("content", ""));
+        msg.put("speakerType", body.getOrDefault("speakerType", 1));
+        msg.put("createdAt", new Date().toInstant().toString());
+        chatMessages.put(String.valueOf(msg.get("id")), msg);
+        return ok(Map.of("messageId", msg.get("id")));
     }
 
     @GetMapping("/chat/sessions")
-    public ResponseEntity<Map<String, Object>> chatSessions() {
+    public ResponseEntity<Map<String, Object>> chatSessions(@RequestParam(required = false) String agentAccount) {
         return ok(List.of());
     }
 
     @GetMapping("/chat/messages")
-    public ResponseEntity<Map<String, Object>> chatMessages() {
+    public ResponseEntity<Map<String, Object>> chatMessages(@RequestParam(required = false) String sessionId, @RequestParam(required = false) String viewerType) {
         return ok(List.of());
     }
 
     @PostMapping("/chat/register-visit")
-    public ResponseEntity<Map<String, Object>> registerVisit() {
+    public ResponseEntity<Map<String, Object>> registerVisit(@RequestBody Map<String, Object> body) {
         return ok(Map.of("ok", true));
     }
 
     @PostMapping("/chat/track-visit")
-    public ResponseEntity<Map<String, Object>> trackVisit() {
+    public ResponseEntity<Map<String, Object>> trackVisit(@RequestParam(required = false) String linkId, @RequestParam(required = false) String linkType) {
         return ok(Map.of("ok", true));
+    }
+
+    @PostMapping("/chat/upload-image")
+    public ResponseEntity<Map<String, Object>> uploadChatImage(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        String name = file.getOriginalFilename() != null ? file.getOriginalFilename() : "chat-" + System.currentTimeMillis() + ".png";
+        files.put(name, Map.of("filename", name, "path", buildFilePath(name)));
+        return ok(Map.of("imagePath", buildFilePath(name)));
+    }
+
+    @GetMapping("/chat/image/{id}")
+    public ResponseEntity<Map<String, Object>> chatImage(@PathVariable String id) {
+        return ok(Map.of("id", id, "url", "/img/default.png"));
     }
 
     @PostMapping("/push/subscribe")
@@ -514,6 +655,50 @@ public class ApiFacadeController {
 
     @GetMapping("/push/vapid-key")
     public ResponseEntity<Map<String, Object>> vapidKey() {
-        return ok(Map.of("key", "demo"));
+        return ok(Map.of("publicKey", "demo"));
+    }
+
+    @GetMapping("/custom-anti-red/admin/all")
+    public ResponseEntity<Map<String, Object>> adminCustomAntiRed() {
+        return ok(new ArrayList<>(customAntiRedLinks.values()));
+    }
+
+    @DeleteMapping("/custom-anti-red/admin/delete/{id}")
+    public ResponseEntity<Map<String, Object>> deleteCustomAntiRed(@PathVariable String id) {
+        Map<String, Object> removed = customAntiRedLinks.remove(id);
+        return removed == null ? fail("数据不存在", 404) : ok(Map.of("deleted", true));
+    }
+
+    @GetMapping("/renew/user-info")
+    public ResponseEntity<Map<String, Object>> renewUserInfo() {
+        return ok(Map.of("balance", 0, "expireDays", 30, "expireTime", ""));
+    }
+
+    @GetMapping("/renew/packages")
+    public ResponseEntity<Map<String, Object>> renewPackages() {
+        return ok(List.of(
+                Map.of("id", 1, "name", "1个月", "price", 10, "days", 30, "recommended", true),
+                Map.of("id", 2, "name", "3个月", "price", 25, "days", 90, "recommended", false)
+        ));
+    }
+
+    @PostMapping("/renew/purchase")
+    public ResponseEntity<Map<String, Object>> renewPurchase(@RequestBody Map<String, Object> body) {
+        return ok(Map.of("newBalance", 0, "newExpireDays", 30, "newExpireTime", ""));
+    }
+
+    @PostMapping("/user/renew")
+    public ResponseEntity<Map<String, Object>> userRenew(@RequestBody Map<String, Object> body) {
+        return ok(Map.of("newBalance", 0, "newExpireDays", 30, "newExpireTime", ""));
+    }
+
+    @GetMapping("/user/info/legacy")
+    public ResponseEntity<Map<String, Object>> userInfoLegacy(@RequestHeader(value = "Authorization", required = false) String auth) {
+        return userInfo(auth);
+    }
+
+    @GetMapping("/files/{filename}")
+    public ResponseEntity<byte[]> fileServe(@PathVariable String filename) {
+        return ResponseEntity.status(HttpStatus.OK).body(new byte[0]);
     }
 }

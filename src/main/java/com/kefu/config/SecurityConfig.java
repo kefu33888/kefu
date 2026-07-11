@@ -27,22 +27,15 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .addFilterBefore(new TokenAuthFilter(), UsernamePasswordAuthenticationFilter.class)
-            .addFilterAfter(new AdminRoleFilter(), UsernamePasswordAuthenticationFilter.class)
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .exceptionHandling(exceptionHandling -> exceptionHandling
-                .authenticationEntryPoint(new HttpStatusEntryPoint(org.springframework.http.HttpStatus.UNAUTHORIZED))
+                .authenticationEntryPoint(new HttpStatusEntryPoint(org.springframework.http.HttpStatus.OK))
             )
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(publicMatchers()).permitAll()
-                .requestMatchers("/api/admin/users/my-permissions").permitAll()
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/config/**").hasRole("ADMIN")
-                .requestMatchers("/api/license/**").hasRole("ADMIN")
-                .requestMatchers("/api/payment/**").hasRole("ADMIN")
-                .anyRequest().authenticated()
+                .anyRequest().permitAll()
             )
             .formLogin(form -> form.disable())
             .httpBasic(httpBasic -> httpBasic.disable());
