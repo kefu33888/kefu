@@ -6,7 +6,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -23,5 +25,12 @@ class SecurityConfigTest {
                 .header("Access-Control-Request-Method", "POST")
                 .header("Access-Control-Request-Headers", "content-type"))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void shareRoutesShouldResolveToFrontendEntry() throws Exception {
+        mockMvc.perform(get("/console/share").param("custuuid", "demo"))
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
     }
 }
