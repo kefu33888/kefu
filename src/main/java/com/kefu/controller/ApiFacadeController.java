@@ -1,6 +1,9 @@
 package com.kefu.controller;
 
 import com.kefu.security.TokenStore;
+import com.kefu.websocket.ChatWebSocketService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -30,6 +33,10 @@ public class ApiFacadeController {
     private final AtomicLong apiLinkSequence = new AtomicLong(1);
     private final AtomicLong orderSequence = new AtomicLong(10001);
     private final AtomicLong messageSequence = new AtomicLong(1);
+
+    @Autowired
+    private ChatWebSocketService chatWebSocketService;
+    private final ObjectMapper __wsMapper = new ObjectMapper();
 
     public ApiFacadeController() {
         seedUsers();
@@ -608,6 +615,13 @@ public class ApiFacadeController {
         msg.put("speakerType", body.getOrDefault("speakerType", 1));
         msg.put("createdAt", new Date().toInstant().toString());
         chatMessages.put(String.valueOf(msg.get("id")), msg);
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("type", "newMessage");
+            payload.put("sessionKey", sessionId);
+            payload.putAll(msg);
+            if (chatWebSocketService != null) chatWebSocketService.broadcastToKey(sessionId, payload);
+        } catch (Exception ignored) {}
         return ok(Map.of("messageId", msg.get("id")));
     }
 

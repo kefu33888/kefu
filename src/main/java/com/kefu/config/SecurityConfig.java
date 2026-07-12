@@ -102,6 +102,7 @@ public class SecurityConfig {
             "/api/user/**",
             "/api/order/**",
             "/api/chat/**",
+            "/ws/**",
             "/api/push/**",
             "/error"
         }).map(AntPathRequestMatcher::new).toArray(RequestMatcher[]::new);
